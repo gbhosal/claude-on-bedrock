@@ -1,0 +1,4 @@
+{
+  "_comment": "Static AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are NOT used in this organisation. This file is retained for reference only. Use settings_sso.json for individual access or retrieve your Bedrock API key from Secrets Manager at iam/bedrock/<username> and set AWS_BEARER_TOKEN_BEDROCK instead.",
+  "_see": "02-credential-strategy.md#static for why this approach is not adopted"
+}

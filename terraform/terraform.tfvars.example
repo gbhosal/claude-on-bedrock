@@ -1,0 +1,39 @@
+aws_region = "us-east-1"
+
+# Individual users — IAM username must match the person's LDAP/directory username exactly.
+# The LDAP sync tool does a direct username match to detect off-boarded users.
+developers = {
+  "jsmith" = {
+    APPACCESS  = "claude-code"
+    GROUP      = "platform"
+    COSTCENTER = "CC-1234"
+    Note       = "Platform engineer, Bedrock early adopter"
+    Contact    = "jsmith@example.com"
+  }
+  "ajones" = {
+    APPACCESS  = "claude-code"
+    GROUP      = "data"
+    COSTCENTER = "CC-5678"
+    Note       = "Data scientist"
+    Contact    = "ajones@example.com"
+  }
+}
+
+# System users — IAM username = app name for self-evident ownership.
+# These are NOT checked against LDAP; key rotation is triggered by app decommission.
+llm_apps = {
+  "app-ragbot-bedrock" = {
+    APPACCESS  = "rag"
+    GROUP      = "platform"
+    COSTCENTER = "CC-1234"
+    Note       = "RAG chatbot service — owned by platform team"
+    Contact    = "platform-oncall@example.com"
+  }
+  "app-codeassist-prod" = {
+    APPACCESS  = "codegen"
+    GROUP      = "devtools"
+    COSTCENTER = "CC-9999"
+    Note       = "Internal code assistant"
+    Contact    = "devtools@example.com"
+  }
+}
