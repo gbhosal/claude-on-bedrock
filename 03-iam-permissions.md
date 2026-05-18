@@ -40,37 +40,21 @@ A ready-to-use copy is at [examples/settings/iam_policy.json](examples/settings/
 
 ## First-Time Account Setup (One-Time)
 
-The first time any user in your AWS account accesses Bedrock, you must submit a use case. The user performing this one-time setup needs:
+> **No longer required.** AWS previously required submitting a use case via `bedrock:PutUseCaseForModelAccess` before models could be used. This step has been removed — models are automatically enabled. The `BedrockFirstTimeSetup` policy and its actions (`PutUseCaseForModelAccess`, `GetUseCaseForModelAccess`) do not need to be included in any user or role policy.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "BedrockFirstTimeSetup",
-      "Effect": "Allow",
-      "Action": [
-        "bedrock:PutUseCaseForModelAccess",
-        "bedrock:GetUseCaseForModelAccess"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+## Model Access Enablement
+
+As of the latest AWS update, Claude models on Bedrock are **automatically enabled** — no manual opt-in step is required. You can invoke any available model as soon as your IAM policy is in place.
+
+You can verify available models in your region with:
+
+```bash
+aws bedrock list-foundation-models \
+  --by-provider Anthropic \
+  --region us-east-1 \
+  --query 'modelSummaries[].{Name:modelName,ID:modelId,Status:modelLifecycle.status}' \
+  --output table
 ```
-
-This can be done once from the management account if using AWS Organizations, and does not need to be included in the standard developer policy.
-
-## Model Access Enablement (AWS Console Step)
-
-Before any IAM policy takes effect, model access must be enabled in the AWS console:
-
-1. Go to AWS Console → Amazon Bedrock → Model access
-2. Click **Manage model access**
-3. Enable the Claude models you need (Anthropic models require accepting terms)
-4. Wait for status to show **Access granted** (usually instant, occasionally a few minutes)
-
-This is a per-region, per-account setting. Enable access in every region you plan to use.
 
 ## Scoping to Specific Models (Tighter Security)
 

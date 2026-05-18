@@ -36,14 +36,13 @@ This repo documents how to migrate Claude CLI (Claude Code) and LLM application 
 ## Quick-Start Checklist
 
 ```
-[ ] 1. Enable Claude model access in AWS Bedrock console
-[ ] 2. Add your user/app to terraform/terraform.tfvars and run terraform apply
+[ ] 1. Add your user/app to terraform/terraform.tfvars and run terraform apply
        (this creates the IAM user, attaches the Bedrock policy, generates a
         Bedrock API key, and saves it to Secrets Manager at iam/bedrock/<name>)
-[ ] 3. Retrieve your Bedrock API key from Secrets Manager
-[ ] 4. Configure Claude Code CLI (see 01-claude-cli-setup.md)
-[ ] 5. Update application code (see 04-sdk-migration.md)
-[ ] 6. Pin model versions (see 05-model-lifecycle.md)
+[ ] 2. Retrieve your Bedrock API key from Secrets Manager
+[ ] 3. Configure Claude Code CLI (see 01-claude-cli-setup.md)
+[ ] 4. Update application code (see 04-sdk-migration.md)
+[ ] 5. Pin model versions (see 05-model-lifecycle.md)
 ```
 
 ## Auth Method Decision Guide
