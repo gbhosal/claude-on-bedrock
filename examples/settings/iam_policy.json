@@ -1,5 +1,5 @@
 {
-  "_comment": "Minimal IAM policy for Claude Code CLI and SDK access to AWS Bedrock. Attach to IAM user, role, or identity.",
+  "_comment": "Minimal IAM policy for LLM application access to AWS Bedrock. Attach to IAM user, role, or identity.",
   "Version": "2012-10-17",
   "Statement": [
     {

@@ -1,0 +1,12 @@
+{
+  "name": "bedrock-node-examples",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.26.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.750.0"
+  }
+}

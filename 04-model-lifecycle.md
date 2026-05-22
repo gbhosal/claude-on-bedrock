@@ -72,27 +72,29 @@ eu.anthropic.claude-sonnet-4-6
 | Claude 3 Sonnet | Claude Sonnet 4.6 | **High** — EOL Jul 30, 2026 |
 | Claude 3 Haiku | Claude Haiku 4.5 | **Medium** — EOL Sep 10, 2026 |
 
-## Pinning Model Versions for Claude Code CLI
+## Pinning Model Versions in Application Code
 
-When deploying Claude Code to multiple users, pin specific versions to prevent surprise breakage when Anthropic releases a new model — aliases like `sonnet` resolve to the latest version, which may not yet be available in your Bedrock account.
+Pin specific model IDs in your application configuration rather than relying on aliases or defaults. This prevents surprise breakage when Anthropic releases a new model version that may not yet be available in your Bedrock account, and makes cost attribution predictable.
 
-In `~/.claude/settings.json`:
-```json
-{
-  "env": {
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "us.anthropic.claude-opus-4-7",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "us.anthropic.claude-sonnet-4-6",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-  }
-}
-```
-
-Or as shell environment variables:
+**Environment variables (recommended for 12-factor apps):**
 ```bash
-export ANTHROPIC_DEFAULT_OPUS_MODEL='us.anthropic.claude-opus-4-7'
-export ANTHROPIC_DEFAULT_SONNET_MODEL='us.anthropic.claude-sonnet-4-6'
-export ANTHROPIC_DEFAULT_HAIKU_MODEL='us.anthropic.claude-haiku-4-5-20251001-v1:0'
+export BEDROCK_MODEL_ID='us.anthropic.claude-sonnet-4-6'
+export BEDROCK_FAST_MODEL_ID='us.anthropic.claude-haiku-4-5-20251001-v1:0'
 ```
+
+**Application config (Python example):**
+```python
+import os
+
+DEFAULT_MODEL = os.environ.get(
+    "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-6"
+)
+FAST_MODEL = os.environ.get(
+    "BEDROCK_FAST_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+)
+```
+
+Deploy model IDs via your app's config management (Secrets Manager, Parameter Store, Helm values, etc.) and update them deliberately during model migrations — not at runtime.
 
 ## Checking Current Model Availability
 

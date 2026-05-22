@@ -67,7 +67,7 @@ print(message.content[0].text)
 3. Model ID: `"claude-opus-4-7"` → `"anthropic.claude-opus-4-7"`
 4. Everything else — `messages.create()`, response structure, tool use, streaming — is **identical**.
 
-### TypeScript: Before vs After
+### TypeScript / Node.js: Before vs After
 
 **Before:**
 ```typescript
@@ -84,9 +84,11 @@ const message = await client.messages.create({
 
 **After:**
 ```typescript
-import AnthropicBedrock from "@anthropic-ai/bedrock-sdk";
+import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 
-const client = new AnthropicBedrock({ awsRegion: "us-east-1" });
+const client = new AnthropicBedrock({
+  awsRegion: process.env.AWS_REGION ?? "us-east-1",
+});
 
 const message = await client.messages.create({
   model: "anthropic.claude-opus-4-7",
@@ -95,10 +97,17 @@ const message = await client.messages.create({
 });
 ```
 
+**What changed:**
+1. `@anthropic-ai/sdk` → `@anthropic-ai/bedrock-sdk`
+2. `new Anthropic({ apiKey })` → `new AnthropicBedrock({ awsRegion })`
+3. Model ID: `"claude-opus-4-7"` → `"anthropic.claude-opus-4-7"`
+4. Everything else — `messages.create()`, streaming, tool use — is **identical**.
+
 ### Streaming: Before vs After
 
-The streaming API is **identical** between direct Anthropic and Bedrock Mantle:
+The streaming API is **identical** between direct Anthropic and Bedrock Mantle.
 
+**Python:**
 ```python
 # Works the same on both direct API and Bedrock Mantle
 with client.messages.stream(
@@ -108,6 +117,31 @@ with client.messages.stream(
 ) as stream:
     for text in stream.text_stream:
         print(text, end="", flush=True)
+```
+
+**Node.js:**
+```javascript
+import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
+
+const client = new AnthropicBedrock({ awsRegion: "us-east-1" });
+
+const stream = client.messages.stream({
+  model: "anthropic.claude-opus-4-7",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Write a short story." }],
+});
+
+for await (const event of stream) {
+  if (
+    event.type === "content_block_delta" &&
+    event.delta.type === "text_delta"
+  ) {
+    process.stdout.write(event.delta.text);
+  }
+}
+
+const final = await stream.finalMessage();
+console.log(final.usage);
 ```
 
 ### AWS Credentials for the SDK
@@ -126,6 +160,17 @@ client = AnthropicBedrockMantle(
     aws_region="us-east-1",
     # aws_profile="my-profile"  # or set AWS_PROFILE env var
 )
+```
+
+**Node.js** uses the same AWS credential chain. Set `AWS_PROFILE`, access keys, `AWS_BEARER_TOKEN_BEDROCK`, or attach an instance role — no API key constructor argument needed:
+
+```javascript
+import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
+
+const client = new AnthropicBedrock({
+  awsRegion: process.env.AWS_REGION ?? "us-east-1",
+  // awsProfile: "my-profile",  // or set AWS_PROFILE env var
+});
 ```
 
 ---
@@ -191,6 +236,77 @@ for event in response["body"]:
             print(delta.get("text", ""), end="", flush=True)
 ```
 
+### Node.js with `@aws-sdk/client-bedrock-runtime`
+
+Use the AWS SDK for JavaScript v3 when you can't install `@anthropic-ai/bedrock-sdk`:
+
+```bash
+npm install @aws-sdk/client-bedrock-runtime
+```
+
+**Non-streaming:**
+```javascript
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+
+const client = new BedrockRuntimeClient({ region: "us-east-1" });
+
+const response = await client.send(
+  new InvokeModelCommand({
+    modelId: "anthropic.claude-opus-4-7",
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 1024,
+      messages: [
+        { role: "user", content: "Explain quantum entanglement." },
+      ],
+    }),
+  })
+);
+
+const body = JSON.parse(new TextDecoder().decode(response.body));
+console.log(body.content[0].text);
+```
+
+**Streaming:**
+```javascript
+import {
+  BedrockRuntimeClient,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+
+const client = new BedrockRuntimeClient({ region: "us-east-1" });
+
+const response = await client.send(
+  new InvokeModelWithResponseStreamCommand({
+    modelId: "anthropic.claude-opus-4-7",
+    contentType: "application/json",
+    body: JSON.stringify({
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: "Write a short story." }],
+    }),
+  })
+);
+
+for await (const event of response.body) {
+  if (!event.chunk?.bytes) continue;
+  const chunk = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
+  if (chunk.type === "content_block_delta") {
+    const delta = chunk.delta ?? {};
+    if (delta.type === "text_delta") {
+      process.stdout.write(delta.text);
+    }
+  }
+}
+```
+
+**Tool use** goes through the Converse API — see [`examples/nodejs/bedrock_direct.js`](examples/nodejs/bedrock_direct.js).
+
 ---
 
 ## API Feature Parity Table
@@ -220,7 +336,7 @@ for event in response["body"]:
 | Haiku 4.5 | `claude-haiku-4-5-20251001` | `anthropic.claude-haiku-4-5-20251001-v1:0` |
 | Cross-region profile (production) | N/A | `us.anthropic.claude-opus-4-7` |
 
-For the full list with SOL/EOL dates, see [05-model-lifecycle.md](05-model-lifecycle.md).
+For the full list with SOL/EOL dates, see [04-model-lifecycle.md](04-model-lifecycle.md).
 
 ---
 
@@ -237,8 +353,25 @@ For the full list with SOL/EOL dates, see [05-model-lifecycle.md](05-model-lifec
 
 ## Runnable Examples
 
-See the [`examples/python/`](examples/python/) directory:
+**Python** — [`examples/python/`](examples/python/):
 - [`basic_chat.py`](examples/python/basic_chat.py) — minimal hello world
 - [`streaming.py`](examples/python/streaming.py) — streaming response
 - [`tool_use.py`](examples/python/tool_use.py) — tool/function calling
 - [`boto3_direct.py`](examples/python/boto3_direct.py) — raw boto3 approach
+
+**Node.js** — [`examples/nodejs/`](examples/nodejs/):
+- [`basic_chat.js`](examples/nodejs/basic_chat.js) — minimal hello world
+- [`streaming.js`](examples/nodejs/streaming.js) — streaming response
+- [`tool_use.js`](examples/nodejs/tool_use.js) — tool/function calling
+- [`bedrock_direct.js`](examples/nodejs/bedrock_direct.js) — raw `@aws-sdk/client-bedrock-runtime` approach
+
+```bash
+# Node.js setup
+cd examples/nodejs
+npm install
+export AWS_REGION=us-east-1
+node basic_chat.js
+node streaming.js
+node tool_use.js
+node bedrock_direct.js
+```

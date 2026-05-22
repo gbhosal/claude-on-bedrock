@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-A migration guide and runnable examples for teams moving from Anthropic's direct API (or Claude Code CLI) to AWS Bedrock. There is no build system, test suite, or installable package — the deliverables are Markdown docs and copy-paste Python examples.
+A migration guide and runnable examples for teams moving **LLM application code** from Anthropic's direct API to AWS Bedrock. There is no build system, test suite, or installable package — the deliverables are Markdown docs and copy-paste Python examples.
+
+**Out of scope:** Claude Code CLI setup on Bedrock. Claude Code on Bedrock is strongly discouraged due to cost — see [README.md](README.md#do-not-use-claude-code-on-bedrock).
 
 ## Terraform (IAM User Lifecycle)
 
@@ -30,7 +32,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in your users and
 
 ## Running the Examples
 
-Install dependencies for the Anthropic SDK path:
+**Python** — Anthropic SDK path:
 ```bash
 pip install "anthropic[bedrock]"
 ```
@@ -43,15 +45,27 @@ pip install boto3
 Set credentials before running any example:
 ```bash
 export AWS_REGION=us-east-1
-export AWS_BEARER_TOKEN_BEDROCK=<key-from-secrets-manager>   # retrieve from iam/bedrock/<username>
+export AWS_BEARER_TOKEN_BEDROCK=<key-from-secrets-manager>   # retrieve from iam/bedrock/<app-name>
 ```
 
-Run an example:
+Run a Python example:
 ```bash
 python examples/python/basic_chat.py
 python examples/python/streaming.py
 python examples/python/tool_use.py
 python examples/python/boto3_direct.py
+```
+
+**Node.js** — Bedrock SDK path:
+```bash
+cd examples/nodejs
+npm install
+export AWS_REGION=us-east-1
+export AWS_BEARER_TOKEN_BEDROCK=<key-from-secrets-manager>
+node basic_chat.js
+node streaming.js
+node tool_use.js
+node bedrock_direct.js
 ```
 
 Check which Claude models are available in your account/region:
@@ -64,7 +78,7 @@ aws bedrock list-foundation-models \
 
 ## Architecture
 
-### Two migration paths (see `04-sdk-migration.md`)
+### Two migration paths (see `03-sdk-migration.md`)
 
 **Path A — Anthropic SDK with Bedrock backend (recommended):** Replace `Anthropic(api_key=...)` with `AnthropicBedrockMantle(aws_region=...)` and prefix model IDs with `anthropic.`. The entire `messages.create()` surface — including tool use, streaming, and extended thinking — is identical to the direct API. Notable exceptions: Batch API, Files API, server-side tools (Web Search, Code Execution), and Claude Managed Agents are **not available** on Bedrock.
 
@@ -91,22 +105,19 @@ Models with imminent EOL: Claude Opus 4 (May 31 2026), Claude 3.5 Haiku (Jun 19 
 
 ### Configuration templates (`examples/settings/`)
 
-- `settings_sso.json` — `~/.claude/settings.json` for SSO/Identity Center auth with auto-refresh
-- `settings_static_keys.json` — retained for reference only; static IAM keys are not used in this organisation
 - `iam_policy.json` — minimal IAM policy to copy-paste
 
 ### Documentation index
 
 | File | Topic |
 |------|-------|
-| `01-claude-cli-setup.md` | Configure Claude Code CLI for Bedrock |
-| `02-credential-strategy.md` | Auth methods: Terraform Bedrock API keys (default), STS, SSO, instance roles; static IAM keys documented but not used |
-| `03-iam-permissions.md` | Minimal IAM policy, model access enablement, CI/CD policies |
-| `04-sdk-migration.md` | Full before/after code for Path A and Path B (Python + TypeScript) |
-| `05-model-lifecycle.md` | Model IDs, EOL dates, cross-region profiles, pinning versions |
-| `06-agentic-access.md` | Tool use, multi-turn loops, streaming, extended thinking, prompt caching |
-| `07-iam-lifecycle.md` | Terraform-managed IAM users, mandatory tags, LDAP-driven deactivation, migration trajectory |
+| `01-credential-strategy.md` | Auth methods for LLM apps: Terraform Bedrock API keys, STS, instance roles |
+| `02-iam-permissions.md` | Minimal IAM policy, model access enablement, CI/CD policies |
+| `03-sdk-migration.md` | Full before/after code for Path A and Path B (Python + TypeScript) |
+| `04-model-lifecycle.md` | Model IDs, EOL dates, cross-region profiles, pinning versions in app code |
+| `05-agentic-access.md` | Tool use, multi-turn loops, streaming, extended thinking, prompt caching |
+| `06-iam-lifecycle.md` | Terraform-managed IAM users, mandatory tags, LDAP-driven deactivation, migration trajectory |
 
 ## Editing Guidelines
 
-When updating example code, always use cross-region profile model IDs (`us.anthropic.*`) in production-oriented snippets and plain `anthropic.*` IDs in minimal/introductory examples. Keep the feature parity table in `04-sdk-migration.md` current — Bedrock does not support Batch API, Files API, server-side tools, or Managed Agents.
+When updating example code, always use cross-region profile model IDs (`us.anthropic.*`) in production-oriented snippets and plain `anthropic.*` IDs in minimal/introductory examples. Keep the feature parity table in `03-sdk-migration.md` current — Bedrock does not support Batch API, Files API, server-side tools, or Managed Agents. Do not add Claude Code CLI setup documentation — this repo is for LLM application workloads only.

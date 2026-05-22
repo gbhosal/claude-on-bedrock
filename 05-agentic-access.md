@@ -4,7 +4,7 @@ This document covers tool use (function calling), multi-turn agentic loops, stre
 
 ## Tool Use (Function Calling)
 
-Tool use on the Bedrock Mantle API is **identical** to the direct Anthropic API. No code changes are needed beyond the client initialization changes described in [04-sdk-migration.md](04-sdk-migration.md).
+Tool use on the Bedrock Mantle API is **identical** to the direct Anthropic API. No code changes are needed beyond the client initialization changes described in [03-sdk-migration.md](03-sdk-migration.md).
 
 ### Defining and Calling Tools
 

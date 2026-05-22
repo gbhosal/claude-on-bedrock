@@ -31,7 +31,7 @@ All five tags below are **required** on every IAM user. Tag keys are **case-sens
 | Tag key | Valid values | Purpose |
 |---------|-------------|---------|
 | `UserType` | `Individual` or `System` | Distinguishes humans from app service accounts; drives LDAP sync scope |
-| `APPACCESS` | Free string (e.g. `claude-code`, `rag`, `codegen`) | Describes what the credentials are used to access |
+| `APPACCESS` | Free string (e.g. `rag`, `codegen`, `sdk-dev`) | Describes what the credentials are used to access |
 | `GROUP` | Team name | Owning team for cost and accountability |
 | `COSTCENTER` | Cost center code | Enables per-team cost allocation in AWS Cost Explorer |
 | `Note` | Free text | Comments about the app team, owner, or anything relevant |
@@ -50,15 +50,15 @@ Terraform `validation` blocks in the module enforce that all five mandatory tags
 
 All IAM user management runs through the `terraform/` directory. See [CLAUDE.md](CLAUDE.md) for commands.
 
-**To add a new Individual user**, add an entry to `developers` in your `terraform.tfvars`:
+**To add a new Individual user** (local SDK development and integration testing only — not for Claude Code CLI), add an entry to `developers` in your `terraform.tfvars`:
 
 ```hcl
 developers = {
   "newuser" = {
-    app_access  = "claude-code"
+    app_access  = "sdk-dev"
     group       = "myteam"
     cost_center = "CC-0001"
-    note        = "New hire — platform team"
+    note        = "Local SDK development for RAG chatbot — NOT Claude Code"
     contact     = "newuser@example.com"
   }
 }
@@ -134,7 +134,7 @@ Long-term keys are a governed starting point, not a destination. The expected mi
 | **Individual** | Terraform IAM user + long-term key | AWS SSO / Identity Center login | SSO with short-lived tokens; no long-term keys |
 | **System (app)** | Terraform IAM user + long-term key | STS `AssumeRole` from the app's deploy environment | EC2/ECS/Lambda instance role; no stored credentials |
 
-See [02-credential-strategy.md](02-credential-strategy.md) for setup instructions for each auth method.
+See [01-credential-strategy.md](01-credential-strategy.md) for setup instructions for each auth method.
 
 ---
 

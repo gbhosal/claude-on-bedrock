@@ -17,7 +17,7 @@ variable "UserType" {
 }
 
 variable "APPACCESS" {
-  description = "APPACCESS tag — describes the access purpose, e.g. \"claude-code\", \"rag\", \"codegen\"."
+  description = "APPACCESS tag — describes the access purpose, e.g. \"rag\", \"codegen\", \"sdk-dev\"."
   type        = string
   validation {
     condition     = length(trimspace(var.APPACCESS)) > 0

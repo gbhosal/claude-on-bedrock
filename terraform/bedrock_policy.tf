@@ -4,7 +4,7 @@
 resource "aws_iam_policy" "bedrock_invoke" {
   name        = "BedrockInvokePolicy"
   path        = "/bedrock/"
-  description = "Minimum permissions for Claude Code CLI and Anthropic SDK access to AWS Bedrock."
+  description = "Minimum permissions for Anthropic SDK and boto3 access to AWS Bedrock."
 
   policy = jsonencode({
     Version = "2012-10-17"

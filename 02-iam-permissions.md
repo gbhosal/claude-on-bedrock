@@ -2,7 +2,7 @@
 
 ## Minimal IAM Policy
 
-Attach this policy to the IAM user, role, or identity used to access Bedrock. This is the minimum required for Claude Code CLI and SDK usage.
+Attach this policy to the IAM user, role, or identity used by your LLM application to access Bedrock. This is the minimum required for Anthropic SDK and boto3 usage.
 
 ```json
 {
@@ -34,8 +34,8 @@ A ready-to-use copy is at [examples/settings/iam_policy.json](examples/settings/
 | Action | Required For | Notes |
 |--------|-------------|-------|
 | `bedrock:InvokeModel` | Synchronous model calls | Required for non-streaming requests |
-| `bedrock:InvokeModelWithResponseStream` | Streaming responses | Required for streaming; Claude Code uses this heavily |
-| `bedrock:ListInferenceProfiles` | Model discovery | Claude Code uses this to enumerate available models at startup |
+| `bedrock:InvokeModelWithResponseStream` | Streaming responses | Required for streaming chat and agent responses |
+| `bedrock:ListInferenceProfiles` | Model discovery | Optional; useful for runtime model validation and health checks |
 | `bedrock:GetInferenceProfile` | ARN resolution | Resolves application inference profile ARNs to foundation models; required when using cross-region profiles |
 
 ## First-Time Account Setup (One-Time)
@@ -137,7 +137,7 @@ Trust policy for the role (allows your CI/CD AWS account to assume it):
 
 ## Terraform Module
 
-The policy in this document is also managed as an `aws_iam_policy` resource in [`terraform/bedrock_policy.tf`](terraform/bedrock_policy.tf). When using the Terraform-managed IAM user workflow (see [07-iam-lifecycle.md](07-iam-lifecycle.md)), `terraform/bedrock_policy.tf` is the single source of truth — manual updates to `examples/settings/iam_policy.json` will not affect users managed by Terraform.
+The policy in this document is also managed as an `aws_iam_policy` resource in [`terraform/bedrock_policy.tf`](terraform/bedrock_policy.tf). When using the Terraform-managed IAM user workflow (see [06-iam-lifecycle.md](06-iam-lifecycle.md)), `terraform/bedrock_policy.tf` is the single source of truth — manual updates to `examples/settings/iam_policy.json` will not affect users managed by Terraform.
 
 The Terraform module at [`terraform/modules/bedrock_iam_user/`](terraform/modules/bedrock_iam_user/) creates IAM users, attaches this policy, and enforces all five mandatory tags. See [`terraform/terraform.tfvars.example`](terraform/terraform.tfvars.example) for the full variable structure.
 

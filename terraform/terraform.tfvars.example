@@ -1,21 +1,14 @@
 aws_region = "us-east-1"
 
-# Individual users — IAM username must match the person's LDAP/directory username exactly.
-# The LDAP sync tool does a direct username match to detect off-boarded users.
+# Individual users — for local SDK development and integration testing ONLY.
+# NOT for Claude Code CLI — see README.md. IAM username must match LDAP exactly.
 developers = {
   "jsmith" = {
-    APPACCESS  = "claude-code"
+    APPACCESS  = "sdk-dev"
     GROUP      = "platform"
     COSTCENTER = "CC-1234"
-    Note       = "Platform engineer, Bedrock early adopter"
+    Note       = "Local SDK dev for RAG chatbot — NOT Claude Code"
     Contact    = "jsmith@example.com"
-  }
-  "ajones" = {
-    APPACCESS  = "claude-code"
-    GROUP      = "data"
-    COSTCENTER = "CC-5678"
-    Note       = "Data scientist"
-    Contact    = "ajones@example.com"
   }
 }
 
