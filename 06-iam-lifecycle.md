@@ -4,7 +4,7 @@ This document covers how Terraform-managed IAM users are created, tagged, and de
 
 ## Overview
 
-Terraform's scope is **identity only**: it creates IAM users for LLM apps, attaches the Bedrock invoke policy, and enforces mandatory tags. It does **not** create Bedrock API keys, IAM access keys, or Secrets Manager entries — those credentials require rotation and are managed outside Terraform by the owning team.
+Terraform's scope is **identity only**: it creates IAM users for LLM apps, attaches the Bedrock invoke policy, and enforces mandatory tags. It does **not** create Bedrock API keys or Secrets Manager entries — keys are provisioned and rotated by the platform team.
 
 The two pillars are:
 1. **Terraform ownership** — every LLM app IAM user is created and destroyed through code, not the console
@@ -18,7 +18,7 @@ The two pillars are:
 |-----------|---------------------|---------|
 | **System** (LLM application) | App name, typically prefixed with `app-` | `app-ragbot-bedrock` |
 
-Individual developer IAM users are **not** provisioned through this module. Use AWS SSO / Identity Center for local development (see [01-credential-strategy.md](01-credential-strategy.md#sso)).
+Individual developer IAM users are **not** provisioned through this module. This Terraform workflow is for LLM application service accounts only.
 
 ---
 
@@ -64,29 +64,27 @@ llm_apps = {
 
 Then run `terraform apply`. The user is created with the Bedrock invoke policy attached and all tags set.
 
-**To remove a user** (app decommission), delete the entry from `tfvars` and run `terraform apply`. Before destroying, deactivate any credentials issued to that user (Bedrock API keys, IAM access keys) through your credential management process.
+**To remove a user** (app decommission), delete the entry from `tfvars` and run `terraform apply`. Before destroying, revoke any Bedrock API key issued to that user.
 
 ---
 
 ## Credential Provisioning (Out of Band)
 
-After `terraform apply` creates the IAM user, the app team provisions credentials separately. Terraform does not manage this step.
+After `terraform apply` creates the IAM user, the platform team provisions credentials separately. Terraform does not manage this step.
 
-| Credential type | When to use | How to provision |
-|-----------------|-------------|------------------|
-| **Instance/task IAM role** | Production workloads on EC2, ECS, Lambda, EKS | Attach a role with the Bedrock policy; no keys on the user |
-| **STS AssumeRole** | CI/CD, cross-account | Pipeline assumes a role; no keys stored on the user |
-| **Bedrock API key** | Apps outside AWS (transitional) | Create in AWS console (Bedrock → API keys) or your org's key-rotation tooling; store in Secrets Manager via your rotation pipeline |
-| **IAM access key** | Legacy integrations only | Create manually or via rotation tooling; **not** via Terraform |
+| Auth method | When to use | How to provision |
+|-------------|-------------|------------------|
+| **Bedrock API key** | Apps outside AWS; transitional | Platform team creates a key scoped to the IAM user; app stores in its secret store as `AWS_BEARER_TOKEN_BEDROCK` |
+| **Instance/task IAM role** | Production workloads on EC2, ECS, Lambda, EKS (target) | Attach a role with the Bedrock policy; no stored keys |
 
-Bedrock API keys and IAM access keys **must be rotated** on a schedule defined by the owning team (document in the `Note` tag or team runbook). Because rotation replaces secret material, these credentials cannot be safely managed as Terraform resources.
+Bedrock API keys **must be rotated** on a schedule defined by the platform team. Because rotation replaces secret material, keys cannot be safely managed as Terraform resources.
 
 Example post-apply flow for a Bedrock API key:
 
 1. `terraform apply` creates IAM user `app-ragbot-bedrock`
-2. App team creates a Bedrock API key scoped to that user (console or internal tooling)
-3. Key is stored in the app's Secrets Manager path (e.g. `myapp/bedrock/api-key`) by the rotation pipeline
-4. Application reads `AWS_BEARER_TOKEN_BEDROCK` from the runtime secret injection mechanism
+2. Platform team creates a Bedrock API key scoped to that user
+3. Key is stored in the app's secret store (e.g. Secrets Manager path `myapp/bedrock/api-key`)
+4. Application reads `AWS_BEARER_TOKEN_BEDROCK` from runtime secret injection
 
 ---
 
@@ -94,7 +92,7 @@ Example post-apply flow for a Bedrock API key:
 
 When an LLM app is retired:
 
-1. **Revoke credentials first** — deactivate IAM access keys and revoke Bedrock API keys for the user
+1. **Revoke credentials first** — revoke the Bedrock API key for the user (or detach the instance role)
 2. **Remove from Terraform** — delete the entry from `llm_apps` in `terraform.tfvars` and run `terraform apply`
 3. **Verify** — confirm CloudTrail shows no further Bedrock invocations from the user
 
@@ -106,9 +104,8 @@ The `Contact` tag should point to the app team's on-call or distribution list so
 
 | Stage | Identity (Terraform) | Credentials |
 |-------|---------------------|-------------|
-| **Now** | IAM user + Bedrock policy + tags | Bedrock API key or IAM access key, rotated out of band |
-| **Next** | Same | STS `AssumeRole` from the app's deploy environment |
-| **Target** | Retire IAM user; use instance/task role only | EC2/ECS/Lambda instance role; no stored credentials |
+| **Now** | IAM user + Bedrock policy + tags | Bedrock API key (`AWS_BEARER_TOKEN_BEDROCK`), rotated out of band |
+| **Target (AWS-hosted)** | Same IAM user, or retire user when role-only | Instance/task IAM role; no stored keys |
 
 See [01-credential-strategy.md](01-credential-strategy.md) for setup instructions for each auth method.
 

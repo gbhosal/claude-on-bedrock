@@ -42,12 +42,11 @@ For the boto3 path:
 pip install boto3
 ```
 
-Set credentials before running any example (from your app's secret store, SSO profile, or instance role — not from Terraform):
+Set credentials before running any example (Bedrock API key from your app's secret store, or an instance role when running on AWS — not from Terraform):
 
 ```bash
 export AWS_REGION=us-east-1
-export AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>   # if using Bedrock API key auth
-# or: export AWS_PROFILE=<sso-profile>
+export AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>   # Bedrock API key auth (default for local runs)
 ```
 
 Run a Python example:
@@ -63,7 +62,7 @@ python examples/python/boto3_direct.py
 cd examples/nodejs
 npm install
 export AWS_REGION=us-east-1
-export AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>   # or AWS_PROFILE for SSO
+export AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>
 node basic_chat.js
 node streaming.js
 node tool_use.js
@@ -113,7 +112,7 @@ Models with imminent EOL: Claude Opus 4 (May 31 2026), Claude 3.5 Haiku (Jun 19 
 
 | File | Topic |
 |------|-------|
-| `01-credential-strategy.md` | Auth methods for LLM apps: Terraform IAM users, STS, instance roles |
+| `01-credential-strategy.md` | Bedrock API keys and instance roles for LLM apps |
 | `02-iam-permissions.md` | Minimal IAM policy, model access enablement, CI/CD policies |
 | `03-sdk-migration.md` | Full before/after code for Path A and Path B (Python + TypeScript) |
 | `04-model-lifecycle.md` | Model IDs, EOL dates, cross-region profiles, pinning versions in app code |

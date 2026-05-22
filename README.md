@@ -76,7 +76,7 @@ By contrast, a typical LLM application request (single-turn RAG query, ~4K input
 
 | Doc | What It Covers |
 |-----|---------------|
-| [01-credential-strategy.md](01-credential-strategy.md) | Auth methods for LLM apps: Terraform IAM users, STS, instance roles |
+| [01-credential-strategy.md](01-credential-strategy.md) | Bedrock API keys and instance roles for LLM apps |
 | [02-iam-permissions.md](02-iam-permissions.md) | Required IAM policy and resource scoping |
 | [03-sdk-migration.md](03-sdk-migration.md) | Code changes: Anthropic SDK → Bedrock SDK |
 | [04-model-lifecycle.md](04-model-lifecycle.md) | Which models to use, EOL dates, pinning versions in app code |
@@ -88,8 +88,8 @@ By contrast, a typical LLM application request (single-turn RAG query, ~4K input
 ```
 [ ] 1. Add your LLM app to terraform/terraform.tfvars (llm_apps block) and run terraform apply
        (creates the IAM user and attaches the Bedrock invoke policy with mandatory tags)
-[ ] 2. Provision credentials for the app outside Terraform (Bedrock API key, STS role, or
-       instance role — see 06-iam-lifecycle.md#credential-provisioning-out-of-band)
+[ ] 2. Obtain your app's Bedrock API key (from platform team) and inject
+       AWS_BEARER_TOKEN_BEDROCK at runtime — see 01-credential-strategy.md#bedrock-api-keys
 [ ] 3. Update application code (see 03-sdk-migration.md)
 [ ] 4. Pin model versions in application config (see 04-model-lifecycle.md)
 [ ] 5. Choose the right model tier for your workload (Haiku for high-volume, Sonnet for balanced)
@@ -97,32 +97,39 @@ By contrast, a typical LLM application request (single-turn RAG query, ~4K input
 
 ## Auth Method Decision Guide
 
+Every LLM app gets an IAM user from Terraform (`llm_apps` in `terraform.tfvars`). How the **application authenticates** depends on where it runs:
+
 ```
-Are you running inside AWS (EC2, ECS, Lambda)?
-  └─ YES → Use instance/task IAM role (no credentials needed)
-  └─ NO
-       ├─ LLM application? (System)
-       │    └─ Terraform creates IAM user (llm_apps block) — credentials provisioned out of band
-       │         → Bedrock API key via console/rotation tooling, or STS AssumeRole
-       │         → long-term target: instance/task IAM role
-       ├─ Local SDK development / integration testing?
-       │    └─ AWS SSO / Identity Center → see 01-credential-strategy.md#sso
-       ├─ CI/CD pipeline?
-       │    └─ Use STS assumed-role (short-term keys) → see 01-credential-strategy.md#sts
-       └─ Running inside AWS (EC2, ECS, Lambda)?
-            └─ Use instance/task IAM role → see 01-credential-strategy.md#instance-role
+Where does your LLM application run?
+
+  └─ On AWS (EC2, ECS, Lambda, EKS) — target for production
+       → Attach an instance/task IAM role with the Bedrock invoke policy
+       → No AWS_BEARER_TOKEN_BEDROCK needed; SDK uses the role automatically
+       → See 01-credential-strategy.md#instance-role
+
+  └─ Outside AWS, or during migration before instance roles are wired
+       → Use a Bedrock API key scoped to your app's IAM user
+       → Inject at runtime: AWS_BEARER_TOKEN_BEDROCK + AWS_REGION
+       → See 01-credential-strategy.md#bedrock-api-keys
 ```
+
+| Runtime | Auth method | Env vars |
+|---------|-------------|----------|
+| AWS-hosted (production target) | Instance/task IAM role | `AWS_REGION` only |
+| Non-AWS or transitional | Bedrock API key | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION` |
+
+Bedrock API keys are provisioned and rotated by the platform team — not by Terraform. See [06-iam-lifecycle.md](06-iam-lifecycle.md) for the IAM user workflow.
 
 ## IAM User Lifecycle
 
-The Terraform module in [`terraform/`](terraform/) creates IAM users for LLM applications and attaches the Bedrock invoke policy. **Credentials are not managed by Terraform** — Bedrock API keys and IAM access keys require rotation and are provisioned by the app team after the user exists.
+The Terraform module in [`terraform/`](terraform/) creates IAM users for LLM applications and attaches the Bedrock invoke policy. **Credentials are not managed by Terraform** — Bedrock API keys are provisioned and rotated by the platform team after the user exists.
 
 | | LLM app (System) |
 |-|------------------|
 | **Terraform creates** | IAM user, Bedrock policy attachment, mandatory tags |
-| **Out of band** | Bedrock API key, IAM access key, or AssumeRole / instance role |
-| **Decommission** | Revoke credentials, then remove from `llm_apps` and `terraform apply` |
-| **Long-term target** | EC2/ECS/Lambda instance role |
+| **Application auth (now)** | Bedrock API key → `AWS_BEARER_TOKEN_BEDROCK` |
+| **Application auth (target on AWS)** | Instance/task IAM role — no stored keys |
+| **Decommission** | Revoke API key, then remove from `llm_apps` and `terraform apply` |
 
 All users carry five mandatory tags (`UserType`, `APPACCESS`, `GROUP`, `COSTCENTER`, `Note` — case-sensitive). `UserType` is always `System`.
 

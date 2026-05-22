@@ -146,30 +146,27 @@ console.log(final.usage);
 
 ### AWS Credentials for the SDK
 
-The `AnthropicBedrockMantle` client uses the standard AWS SDK credential chain in this order:
+The `AnthropicBedrockMantle` client uses the standard AWS SDK credential chain. For this organisation, applications typically authenticate with one of:
 
-1. `aws_access_key` / `aws_secret_key` constructor parameters
-2. `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables
-3. `~/.aws/credentials` named profile (`AWS_PROFILE` env var)
-4. EC2/ECS instance metadata (when running inside AWS)
+1. **`AWS_BEARER_TOKEN_BEDROCK`** — Bedrock API key (default for apps outside AWS or during migration)
+2. **Instance/task IAM role** — when running on EC2, ECS, Lambda, or EKS (production target)
+3. Constructor parameters or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — only if your platform explicitly provisions IAM access keys
 
-For SSO:
 ```python
-# Ensure you've run: aws sso login --profile my-profile
-client = AnthropicBedrockMantle(
-    aws_region="us-east-1",
-    # aws_profile="my-profile"  # or set AWS_PROFILE env var
-)
+from anthropic import AnthropicBedrockMantle
+
+# Bedrock API key: set AWS_BEARER_TOKEN_BEDROCK + AWS_REGION
+# Instance role: set AWS_REGION only (on AWS)
+client = AnthropicBedrockMantle(aws_region="us-east-1")
 ```
 
-**Node.js** uses the same AWS credential chain. Set `AWS_PROFILE`, access keys, `AWS_BEARER_TOKEN_BEDROCK`, or attach an instance role — no API key constructor argument needed:
+**Node.js** uses the same credential chain. Set `AWS_BEARER_TOKEN_BEDROCK` or attach an instance role — no Anthropic API key constructor argument needed:
 
 ```javascript
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 
 const client = new AnthropicBedrock({
   awsRegion: process.env.AWS_REGION ?? "us-east-1",
-  // awsProfile: "my-profile",  // or set AWS_PROFILE env var
 });
 ```
 
@@ -345,7 +342,7 @@ For the full list with SOL/EOL dates, see [04-model-lifecycle.md](04-model-lifec
 | Before | After |
 |--------|-------|
 | `ANTHROPIC_API_KEY=sk-ant-...` | Remove — not needed on Bedrock |
-| — | `AWS_ACCESS_KEY_ID=...` (or use SSO/instance role) |
+| — | `AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>` (or instance role on AWS) |
 | — | `AWS_REGION=us-east-1` |
 | `ANTHROPIC_MODEL=claude-opus-4-7` | `ANTHROPIC_MODEL=anthropic.claude-opus-4-7` |
 
