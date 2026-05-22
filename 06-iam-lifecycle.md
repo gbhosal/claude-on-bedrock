@@ -1,15 +1,14 @@
 # IAM User Lifecycle Management
 
-This document covers how Terraform-managed IAM users are created, tagged, and deactivated as part of the long-term key strategy for AWS Bedrock access.
+This document covers how Terraform-managed IAM users are created, tagged, and decommissioned for LLM application access to AWS Bedrock.
 
 ## Overview
 
-Long-term IAM keys are the lowest-friction starting point when migrating from Anthropic Console, but they carry a governance risk: keys don't expire automatically. This document describes the controls that make them manageable until teams can adopt short-term credentials.
+Terraform's scope is **identity only**: it creates IAM users for LLM apps, attaches the Bedrock invoke policy, and enforces mandatory tags. It does **not** create Bedrock API keys, IAM access keys, or Secrets Manager entries — those credentials require rotation and are managed outside Terraform by the owning team.
 
-The three pillars are:
-1. **Terraform ownership** — every IAM user is created and destroyed through code, not the console
+The two pillars are:
+1. **Terraform ownership** — every LLM app IAM user is created and destroyed through code, not the console
 2. **Consistent tagging** — five mandatory tags on every user answer "who owns this and why"
-3. **LDAP-driven deactivation** — an automated tool cross-references `Individual` users against the corporate directory and disables keys when a person leaves
 
 ---
 
@@ -17,10 +16,9 @@ The three pillars are:
 
 | User type | IAM username format | Example |
 |-----------|---------------------|---------|
-| **Individual** (individual developer) | Exactly matches the person's LDAP/directory username | `jsmith` |
-| **System** (LLM application) | App name, prefixed with `app-` | `app-ragbot-bedrock` |
+| **System** (LLM application) | App name, typically prefixed with `app-` | `app-ragbot-bedrock` |
 
-Using the LDAP username directly eliminates the need for a separate mapping table — the LDAP sync tool can perform a simple set-difference.
+Individual developer IAM users are **not** provisioned through this module. Use AWS SSO / Identity Center for local development (see [01-credential-strategy.md](01-credential-strategy.md#sso)).
 
 ---
 
@@ -30,8 +28,8 @@ All five tags below are **required** on every IAM user. Tag keys are **case-sens
 
 | Tag key | Valid values | Purpose |
 |---------|-------------|---------|
-| `UserType` | `Individual` or `System` | Distinguishes humans from app service accounts; drives LDAP sync scope |
-| `APPACCESS` | Free string (e.g. `rag`, `codegen`, `sdk-dev`) | Describes what the credentials are used to access |
+| `UserType` | `System` (fixed) | Identifies the account as an LLM application service account |
+| `APPACCESS` | Free string (e.g. `rag`, `codegen`) | Describes what the credentials are used to access |
 | `GROUP` | Team name | Owning team for cost and accountability |
 | `COSTCENTER` | Cost center code | Enables per-team cost allocation in AWS Cost Explorer |
 | `Note` | Free text | Comments about the app team, owner, or anything relevant |
@@ -40,9 +38,9 @@ All five tags below are **required** on every IAM user. Tag keys are **case-sens
 
 | Tag key | Format | Purpose |
 |---------|--------|---------|
-| `Contact` | Email address | Recipient for automated notifications (deactivation alerts, key rotation reminders) |
+| `Contact` | Email address | Recipient for rotation reminders and decommission notifications |
 
-Terraform `validation` blocks in the module enforce that all five mandatory tags are non-empty and that `UserType` is exactly `Individual` or `System`. A `terraform plan` will fail fast if any mandatory tag is missing.
+Terraform `validation` blocks in the module enforce that all five mandatory tags are non-empty. A `terraform plan` will fail fast if any mandatory tag is missing.
 
 ---
 
@@ -50,89 +48,67 @@ Terraform `validation` blocks in the module enforce that all five mandatory tags
 
 All IAM user management runs through the `terraform/` directory. See [CLAUDE.md](CLAUDE.md) for commands.
 
-**To add a new Individual user** (local SDK development and integration testing only — not for Claude Code CLI), add an entry to `developers` in your `terraform.tfvars`:
+**To add an LLM app user**, add an entry to `llm_apps` in your `terraform.tfvars`:
 
 ```hcl
-developers = {
-  "newuser" = {
-    app_access  = "sdk-dev"
-    group       = "myteam"
-    cost_center = "CC-0001"
-    note        = "Local SDK development for RAG chatbot — NOT Claude Code"
-    contact     = "newuser@example.com"
+llm_apps = {
+  "app-my-new-service" = {
+    APPACCESS  = "rag"
+    GROUP      = "myteam"
+    COSTCENTER = "CC-0001"
+    Note       = "New RAG service — staging"
+    Contact    = "myteam-oncall@example.com"
   }
 }
 ```
 
 Then run `terraform apply`. The user is created with the Bedrock invoke policy attached and all tags set.
 
-**To add a System user for an LLM app**, add an entry to `llm_apps` similarly, using the app name as the key.
-
-**To remove a user** (e.g. permanent off-boarding or app decommission), delete the entry from `tfvars` and run `terraform apply`. This destroys the IAM user and detaches the policy. Before destroying, ensure any access keys have been deactivated.
+**To remove a user** (app decommission), delete the entry from `tfvars` and run `terraform apply`. Before destroying, deactivate any credentials issued to that user (Bedrock API keys, IAM access keys) through your credential management process.
 
 ---
 
-## LDAP-Driven Key Deactivation
+## Credential Provisioning (Out of Band)
 
-The automated LDAP sync tool targets only `UserType=Individual` users. `UserType=System` users are skipped — their lifecycle is managed by app decommission, not directory membership.
+After `terraform apply` creates the IAM user, the app team provisions credentials separately. Terraform does not manage this step.
 
-### How it works
+| Credential type | When to use | How to provision |
+|-----------------|-------------|------------------|
+| **Instance/task IAM role** | Production workloads on EC2, ECS, Lambda, EKS | Attach a role with the Bedrock policy; no keys on the user |
+| **STS AssumeRole** | CI/CD, cross-account | Pipeline assumes a role; no keys stored on the user |
+| **Bedrock API key** | Apps outside AWS (transitional) | Create in AWS console (Bedrock → API keys) or your org's key-rotation tooling; store in Secrets Manager via your rotation pipeline |
+| **IAM access key** | Legacy integrations only | Create manually or via rotation tooling; **not** via Terraform |
 
-1. List all IAM users with `UserType=Individual` tag
-2. For each user, check if the IAM username exists in the LDAP/Identity directory
-3. If the username is **not found** in LDAP (person has left the organization):
-   - Call `aws iam update-access-key --status Inactive` for every active key on that user
-   - Optionally send a notification to the `Contact` tag email
-4. If the username **is found**, no action is taken
+Bedrock API keys and IAM access keys **must be rotated** on a schedule defined by the owning team (document in the `Note` tag or team runbook). Because rotation replaces secret material, these credentials cannot be safely managed as Terraform resources.
 
-### Deactivation vs. deletion
+Example post-apply flow for a Bedrock API key:
 
-Keys are **deactivated**, not deleted. The IAM user is also kept. This is intentional:
-
-- CloudTrail audit history remains intact — you can trace what the user did after the fact
-- Re-activation is possible if off-boarding was done in error (e.g. wrong LDAP sync, temporary contractor)
-- Terraform remains the authoritative delete path; the sync tool only modifies key status
-
-To permanently remove a user after off-boarding is confirmed, delete them from `terraform.tfvars` and run `terraform apply`.
-
-### Recommended sync frequency
-
-Run the LDAP sync at most **1 hour** after LDAP updates propagate. A longer window means a recently departed user's keys remain active. For high-sensitivity environments, consider also adding an IAM condition that denies API calls after a maximum key age:
-
-```json
-{
-  "Condition": {
-    "DateLessThan": {
-      "aws:CurrentTime": "2026-12-31T00:00:00Z"
-    }
-  }
-}
-```
-
-Or use a Service Control Policy (SCP) to enforce maximum key age org-wide.
+1. `terraform apply` creates IAM user `app-ragbot-bedrock`
+2. App team creates a Bedrock API key scoped to that user (console or internal tooling)
+3. Key is stored in the app's Secrets Manager path (e.g. `myapp/bedrock/api-key`) by the rotation pipeline
+4. Application reads `AWS_BEARER_TOKEN_BEDROCK` from the runtime secret injection mechanism
 
 ---
 
-## System User (App) Key Rotation
+## App Decommission and Key Revocation
 
-`System` users are not checked by the LDAP sync. Key rotation for app users must be triggered explicitly:
+When an LLM app is retired:
 
-- **App decommission**: remove the entry from `llm_apps` in `terraform.tfvars` and apply
-- **Key compromise**: immediately deactivate via `aws iam update-access-key --status Inactive`, then create a new key and update the app's secret store
-- **Periodic rotation**: establish a rotation policy documented in the `Note` tag (e.g. `"Rotate every 90 days — see runbook"`)
+1. **Revoke credentials first** — deactivate IAM access keys and revoke Bedrock API keys for the user
+2. **Remove from Terraform** — delete the entry from `llm_apps` in `terraform.tfvars` and run `terraform apply`
+3. **Verify** — confirm CloudTrail shows no further Bedrock invocations from the user
 
-The `Contact` tag should point to the app team's on-call or distribution list so rotation reminders reach the right people.
+The `Contact` tag should point to the app team's on-call or distribution list so decommission and rotation reminders reach the right people.
 
 ---
 
 ## Migration Trajectory
 
-Long-term keys are a governed starting point, not a destination. The expected migration path:
-
-| User type | Step 0 (now) | Step 1 (next quarter) | Step 2 (target) |
-|-----------|-------------|----------------------|-----------------|
-| **Individual** | Terraform IAM user + long-term key | AWS SSO / Identity Center login | SSO with short-lived tokens; no long-term keys |
-| **System (app)** | Terraform IAM user + long-term key | STS `AssumeRole` from the app's deploy environment | EC2/ECS/Lambda instance role; no stored credentials |
+| Stage | Identity (Terraform) | Credentials |
+|-------|---------------------|-------------|
+| **Now** | IAM user + Bedrock policy + tags | Bedrock API key or IAM access key, rotated out of band |
+| **Next** | Same | STS `AssumeRole` from the app's deploy environment |
+| **Target** | Retire IAM user; use instance/task role only | EC2/ECS/Lambda instance role; no stored credentials |
 
 See [01-credential-strategy.md](01-credential-strategy.md) for setup instructions for each auth method.
 
@@ -142,7 +118,7 @@ See [01-credential-strategy.md](01-credential-strategy.md) for setup instruction
 
 These are out of scope for this repo but worth implementing alongside this workflow:
 
-- **SCP to enforce mandatory tags**: Deny `iam:CreateUser` and `iam:TagUser` unless all five mandatory tags are present. Prevents out-of-band user creation that bypasses Terraform.
-- **SCP to enforce Terraform-only key creation**: Deny `iam:CreateAccessKey` for users without `ManagedBy=terraform` tag, or limit key creation to a dedicated pipeline role.
+- **SCP to enforce mandatory tags**: Deny `iam:CreateUser` unless all five mandatory tags are present. Prevents out-of-band user creation that bypasses Terraform.
+- **SCP to limit key creation**: Deny `iam:CreateAccessKey` except for a dedicated credential-rotation pipeline role.
 - **AWS Config rule**: Alert when an IAM user has an access key older than N days.
 - **CloudTrail → CloudWatch alarm**: Alert on any `iam:CreateUser` event that originates outside your Terraform pipeline.

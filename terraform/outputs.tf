@@ -3,22 +3,12 @@ output "bedrock_policy_arn" {
   value       = aws_iam_policy.bedrock_invoke.arn
 }
 
-output "associate_user_arns" {
-  description = "ARNs of all Individual (individual developer) IAM users."
-  value       = { for k, v in module.associate_users : k => v.user_arn }
+output "llm_app_user_arns" {
+  description = "ARNs of LLM application IAM users, keyed by IAM username."
+  value       = { for k, v in module.llm_app_users : k => v.user_arn }
 }
 
-output "system_user_arns" {
-  description = "ARNs of all System (LLM app) IAM users."
-  value       = { for k, v in module.system_users : k => v.user_arn }
-}
-
-output "associate_secret_arns" {
-  description = "Secrets Manager ARNs for Individual user credentials, keyed by IAM username."
-  value       = { for k, v in module.associate_users : k => v.secret_arn }
-}
-
-output "system_secret_arns" {
-  description = "Secrets Manager ARNs for System user credentials, keyed by IAM username."
-  value       = { for k, v in module.system_users : k => v.secret_arn }
+output "llm_app_user_names" {
+  description = "IAM usernames for LLM applications, keyed by tfvars entry key."
+  value       = { for k, v in module.llm_app_users : k => v.user_name }
 }

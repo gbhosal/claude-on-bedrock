@@ -6,30 +6,26 @@ This document covers authentication methods for **LLM applications** calling AWS
 
 ---
 
-## Method 0: Terraform-Managed Long-term Keys (Transitional) {#terraform-managed}
+## Method 0: Terraform-Managed IAM Users (Identity Only) {#terraform-managed}
 
-**When to use**: LLM apps migrating from Anthropic Console that need a governed, auditable starting point before adopting short-term credentials or instance roles.
+**When to use**: Every LLM application that needs a dedicated Bedrock identity in AWS.
 
-**How it differs from Method 1**: Every user is created by Terraform (not the console), carries five mandatory tags, and is enrolled in LDAP-driven deactivation for individual developer accounts.
+**What Terraform does**: Creates the IAM user, attaches the Bedrock invoke policy, and applies five mandatory tags. See [`terraform/`](terraform/) and [`06-iam-lifecycle.md`](06-iam-lifecycle.md).
 
-**Setup**: See [`terraform/`](terraform/) and [`06-iam-lifecycle.md`](06-iam-lifecycle.md) for the full workflow.
+**What Terraform does not do**: Create Bedrock API keys, IAM access keys, or Secrets Manager secrets. Credentials require rotation and are provisioned by the app team outside Terraform.
 
 Key points:
-- IAM username for individuals **must match** the person's LDAP username exactly — this is what the deactivation tool uses to match
-- LLM app users are named after the app (`app-<name>`) and tagged `UserType=System` — they are **not** checked against LDAP
-- Individual (`UserType=Individual`) keys are for **local SDK development and integration testing only**, not for Claude Code CLI
+- LLM app users are named after the app (`app-<name>`) and tagged `UserType=System`
 - All five mandatory tags (`UserType`, `APPACCESS`, `GROUP`, `COSTCENTER`, `Note`) are enforced by Terraform validation
-- Deactivation disables keys (`Inactive` status) rather than deleting users, preserving CloudTrail history
+- Individual developer IAM users are **not** onboarded through this module — use AWS SSO (Method 3) for local development
 
-**Migration target**: Move `Individual` users to AWS SSO (Method 3) and `System` users to instance/task roles (Method 5) over time.
+**Migration target**: Move from out-of-band Bedrock API keys to instance/task roles (Method 5) over time.
 
 ---
 
 ## Method 1: Static Long-term IAM Keys {#static}
 
-> **Not used in this organisation.** This method is documented as a potential approach for awareness only. Static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` credentials are not provisioned or supported. Use Method 0 (Terraform-managed Bedrock API keys) as the governed starting point, and migrate toward Method 3 (SSO) or Method 5 (instance role) over time.
-
-**Why not**: Keys never expire, cannot be scoped to a rotation window, and carry a high blast-radius if leaked (committed to git, written to logs, etc.). All long-term credential needs are met by Terraform-managed Bedrock API keys stored in Secrets Manager, which provide a narrower token surface and an enforced 30-day rotation for individuals.
+> **Not used in this organisation.** Static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` credentials are not provisioned via Terraform. Use Method 0 (Terraform-managed IAM user) for identity, then provision rotated credentials out of band or migrate to Method 5 (instance role).
 
 ---
 
@@ -135,8 +131,9 @@ SSO tokens expire (typically 8 hours). Re-run `aws sso login` when credentials e
 
 ### Setup
 
-1. Retrieve the Bedrock API key from Secrets Manager at `iam/bedrock/<app-name>` (provisioned by Terraform), or create one in the AWS console under Amazon Bedrock → API keys.
-2. Set environment variables before running your application:
+1. After `terraform apply` creates the IAM user, create a Bedrock API key in the AWS console under **Amazon Bedrock → API keys** (or via your org's credential rotation tooling), scoped to that user.
+2. Store the key in your app's secret store (Secrets Manager path managed by your rotation pipeline — not by Terraform).
+3. Set environment variables before running your application:
 
 ```bash
 export AWS_BEARER_TOKEN_BEDROCK=your-bedrock-api-key
@@ -171,7 +168,7 @@ client = anthropic.AnthropicBedrockMantle(aws_region="us-east-1")
 
 | Method | Key Lifetime | Rotation | Best For | Production Safe? |
 |--------|-------------|----------|----------|-----------------|
-| ~~Static long-term IAM keys~~ | Never (manual revoke) | Manual | **Not used** — see Method 1 note | No |
+| Terraform IAM user (identity only) | N/A — no credentials created | N/A | LLM app identity in AWS | Yes (identity) |
 | STS temporary credentials | 15 min – 36 hours | Automatic | CI/CD, cross-account | Yes |
 | AWS SSO / Identity Center | Hours (session) | Automatic | Local SDK development | Yes |
 | Bedrock API Keys | Until revoked | Manual | Apps outside AWS (transitional) | With caution |

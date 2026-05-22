@@ -1,5 +1,5 @@
 variable "name" {
-  description = "IAM username. For Individuals, use the LDAP username. For System users, use the app name."
+  description = "IAM username for the LLM app (e.g. app-ragbot-bedrock)."
   type        = string
   validation {
     condition     = length(trimspace(var.name)) > 0
@@ -7,17 +7,8 @@ variable "name" {
   }
 }
 
-variable "UserType" {
-  description = "Must be exactly \"Individual\" (human/individual) or \"System\" (LLM app / service account)."
-  type        = string
-  validation {
-    condition     = contains(["Individual", "System"], var.UserType)
-    error_message = "UserType must be exactly \"Individual\" or \"System\"."
-  }
-}
-
 variable "APPACCESS" {
-  description = "APPACCESS tag — describes the access purpose, e.g. \"rag\", \"codegen\", \"sdk-dev\"."
+  description = "APPACCESS tag — describes the access purpose, e.g. \"rag\", \"codegen\"."
   type        = string
   validation {
     condition     = length(trimspace(var.APPACCESS)) > 0
@@ -53,7 +44,7 @@ variable "Note" {
 }
 
 variable "Contact" {
-  description = "Contact tag — email address for automated deactivation notifications. Optional but strongly recommended."
+  description = "Contact tag — email address for rotation and decommission notifications. Optional but strongly recommended."
   type        = string
   default     = ""
 }

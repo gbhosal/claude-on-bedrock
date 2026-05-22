@@ -3,11 +3,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.97"   # aws_bedrock_api_key added in 5.97
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = ">= 0.11"   # time_rotating with rotation_rfc3339 attribute
+      version = ">= 5.0"
     }
   }
 

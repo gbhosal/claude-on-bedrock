@@ -1,19 +1,8 @@
 aws_region = "us-east-1"
 
-# Individual users — for local SDK development and integration testing ONLY.
-# NOT for Claude Code CLI — see README.md. IAM username must match LDAP exactly.
-developers = {
-  "jsmith" = {
-    APPACCESS  = "sdk-dev"
-    GROUP      = "platform"
-    COSTCENTER = "CC-1234"
-    Note       = "Local SDK dev for RAG chatbot — NOT Claude Code"
-    Contact    = "jsmith@example.com"
-  }
-}
-
-# System users — IAM username = app name for self-evident ownership.
-# These are NOT checked against LDAP; key rotation is triggered by app decommission.
+# LLM application IAM users — username = app name for self-evident ownership.
+# Terraform creates the user, attaches the Bedrock invoke policy, and sets tags.
+# Bedrock API keys and IAM access keys are provisioned and rotated outside Terraform.
 llm_apps = {
   "app-ragbot-bedrock" = {
     APPACCESS  = "rag"
@@ -27,6 +16,6 @@ llm_apps = {
     GROUP      = "devtools"
     COSTCENTER = "CC-9999"
     Note       = "Internal code assistant"
-    Contact    = "devtools@example.com"
+    Contact    = "devtools-oncall@example.com"
   }
 }

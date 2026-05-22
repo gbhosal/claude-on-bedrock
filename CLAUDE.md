@@ -10,7 +10,7 @@ A migration guide and runnable examples for teams moving **LLM application code*
 
 ## Terraform (IAM User Lifecycle)
 
-IAM users for Bedrock access are managed in `terraform/`. The module creates users, attaches the Bedrock invoke policy, and enforces all five mandatory tags.
+IAM users for LLM application Bedrock access are managed in `terraform/`. The module creates users, attaches the Bedrock invoke policy, and enforces all five mandatory tags. It does **not** create API keys or Secrets Manager secrets — credentials are provisioned and rotated outside Terraform.
 
 ```bash
 cd terraform
@@ -42,10 +42,12 @@ For the boto3 path:
 pip install boto3
 ```
 
-Set credentials before running any example:
+Set credentials before running any example (from your app's secret store, SSO profile, or instance role — not from Terraform):
+
 ```bash
 export AWS_REGION=us-east-1
-export AWS_BEARER_TOKEN_BEDROCK=<key-from-secrets-manager>   # retrieve from iam/bedrock/<app-name>
+export AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>   # if using Bedrock API key auth
+# or: export AWS_PROFILE=<sso-profile>
 ```
 
 Run a Python example:
@@ -61,7 +63,7 @@ python examples/python/boto3_direct.py
 cd examples/nodejs
 npm install
 export AWS_REGION=us-east-1
-export AWS_BEARER_TOKEN_BEDROCK=<key-from-secrets-manager>
+export AWS_BEARER_TOKEN_BEDROCK=<bedrock-api-key>   # or AWS_PROFILE for SSO
 node basic_chat.js
 node streaming.js
 node tool_use.js
@@ -111,12 +113,12 @@ Models with imminent EOL: Claude Opus 4 (May 31 2026), Claude 3.5 Haiku (Jun 19 
 
 | File | Topic |
 |------|-------|
-| `01-credential-strategy.md` | Auth methods for LLM apps: Terraform Bedrock API keys, STS, instance roles |
+| `01-credential-strategy.md` | Auth methods for LLM apps: Terraform IAM users, STS, instance roles |
 | `02-iam-permissions.md` | Minimal IAM policy, model access enablement, CI/CD policies |
 | `03-sdk-migration.md` | Full before/after code for Path A and Path B (Python + TypeScript) |
 | `04-model-lifecycle.md` | Model IDs, EOL dates, cross-region profiles, pinning versions in app code |
 | `05-agentic-access.md` | Tool use, multi-turn loops, streaming, extended thinking, prompt caching |
-| `06-iam-lifecycle.md` | Terraform-managed IAM users, mandatory tags, LDAP-driven deactivation, migration trajectory |
+| `06-iam-lifecycle.md` | Terraform-managed IAM users, mandatory tags, out-of-band credential provisioning |
 
 ## Editing Guidelines
 

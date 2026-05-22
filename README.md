@@ -76,20 +76,20 @@ By contrast, a typical LLM application request (single-turn RAG query, ~4K input
 
 | Doc | What It Covers |
 |-----|---------------|
-| [01-credential-strategy.md](01-credential-strategy.md) | Auth methods for LLM apps: Terraform Bedrock API keys, STS, instance roles |
+| [01-credential-strategy.md](01-credential-strategy.md) | Auth methods for LLM apps: Terraform IAM users, STS, instance roles |
 | [02-iam-permissions.md](02-iam-permissions.md) | Required IAM policy and resource scoping |
 | [03-sdk-migration.md](03-sdk-migration.md) | Code changes: Anthropic SDK → Bedrock SDK |
 | [04-model-lifecycle.md](04-model-lifecycle.md) | Which models to use, EOL dates, pinning versions in app code |
 | [05-agentic-access.md](05-agentic-access.md) | Tool use, agents, streaming on Bedrock |
-| [06-iam-lifecycle.md](06-iam-lifecycle.md) | Terraform-managed IAM users, mandatory tags, LDAP-driven key deactivation |
+| [06-iam-lifecycle.md](06-iam-lifecycle.md) | Terraform-managed IAM users, mandatory tags, out-of-band credential provisioning |
 
 ## Quick-Start Checklist
 
 ```
 [ ] 1. Add your LLM app to terraform/terraform.tfvars (llm_apps block) and run terraform apply
-       (creates the IAM user, attaches the Bedrock policy, generates a Bedrock API key,
-        and saves it to Secrets Manager at iam/bedrock/<app-name>)
-[ ] 2. Retrieve the Bedrock API key from Secrets Manager
+       (creates the IAM user and attaches the Bedrock invoke policy with mandatory tags)
+[ ] 2. Provision credentials for the app outside Terraform (Bedrock API key, STS role, or
+       instance role — see 06-iam-lifecycle.md#credential-provisioning-out-of-band)
 [ ] 3. Update application code (see 03-sdk-migration.md)
 [ ] 4. Pin model versions in application config (see 04-model-lifecycle.md)
 [ ] 5. Choose the right model tier for your workload (Haiku for high-volume, Sonnet for balanced)
@@ -102,37 +102,31 @@ Are you running inside AWS (EC2, ECS, Lambda)?
   └─ YES → Use instance/task IAM role (no credentials needed)
   └─ NO
        ├─ LLM application? (System)
-       │    └─ Terraform-provisioned Bedrock API key, no expiry
-       │         → terraform/terraform.tfvars (llm_apps block)
-       │         → key stored at Secrets Manager: iam/bedrock/<app-name>
-       │         → long-term path: migrate to instance/task IAM role
+       │    └─ Terraform creates IAM user (llm_apps block) — credentials provisioned out of band
+       │         → Bedrock API key via console/rotation tooling, or STS AssumeRole
+       │         → long-term target: instance/task IAM role
        ├─ Local SDK development / integration testing?
-       │    └─ Terraform-provisioned Bedrock API key, 30-day rotation
-       │         → terraform/terraform.tfvars (developers block)
-       │         → key stored at Secrets Manager: iam/bedrock/<ldap-username>
-       │         → for testing LLM app code only — NOT for Claude Code CLI
+       │    └─ AWS SSO / Identity Center → see 01-credential-strategy.md#sso
        ├─ CI/CD pipeline?
        │    └─ Use STS assumed-role (short-term keys) → see 01-credential-strategy.md#sts
        └─ Running inside AWS (EC2, ECS, Lambda)?
             └─ Use instance/task IAM role → see 01-credential-strategy.md#instance-role
 ```
 
-## Key Lifecycle Management
+## IAM User Lifecycle
 
-The Terraform module in [`terraform/`](terraform/) provisions Bedrock API keys and stores them in Secrets Manager at `iam/bedrock/<name>`. Key governance rules:
+The Terraform module in [`terraform/`](terraform/) creates IAM users for LLM applications and attaches the Bedrock invoke policy. **Credentials are not managed by Terraform** — Bedrock API keys and IAM access keys require rotation and are provisioned by the app team after the user exists.
 
-| | Individual (local dev) | System (LLM app) |
-|-|------------------------|------------------|
-| **Purpose** | SDK integration testing only | Production and staging LLM workloads |
-| **Key type** | Bedrock API key | Bedrock API key |
-| **Expiry** | 30 days — auto-rotated by Terraform | None — decommission with the app |
-| **Secret path** | `iam/bedrock/<ldap-username>` | `iam/bedrock/<app-name>` |
-| **LDAP sync** | Yes — key disabled when user leaves org | No |
-| **Long-term target** | AWS SSO / Identity Center | EC2/ECS/Lambda instance role |
+| | LLM app (System) |
+|-|------------------|
+| **Terraform creates** | IAM user, Bedrock policy attachment, mandatory tags |
+| **Out of band** | Bedrock API key, IAM access key, or AssumeRole / instance role |
+| **Decommission** | Revoke credentials, then remove from `llm_apps` and `terraform apply` |
+| **Long-term target** | EC2/ECS/Lambda instance role |
 
-All users carry five mandatory tags (`UserType`, `APPACCESS`, `GROUP`, `COSTCENTER`, `Note` — case-sensitive). An automated LDAP sync targets `UserType=Individual` users and disables their Bedrock API key when they are no longer found in the directory.
+All users carry five mandatory tags (`UserType`, `APPACCESS`, `GROUP`, `COSTCENTER`, `Note` — case-sensitive). `UserType` is always `System`.
 
-See [06-iam-lifecycle.md](06-iam-lifecycle.md) for the full workflow and migration trajectory toward short-term credentials.
+See [06-iam-lifecycle.md](06-iam-lifecycle.md) for the full workflow and credential provisioning guidance.
 
 ## Examples
 
